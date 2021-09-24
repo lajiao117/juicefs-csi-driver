@@ -18,6 +18,7 @@ package mount
 
 import (
 	"fmt"
+	"k8s.io/klog"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -47,7 +48,7 @@ func hasRef(pod *corev1.Pod) bool {
 	return false
 }
 
-func NewMountPod(podName, cmd, mountPath string, resourceRequirements corev1.ResourceRequirements,
+func NewMountPod(podName, cmd, mountPath, volId, targetPath string, resourceRequirements corev1.ResourceRequirements,
 	configs, env map[string]string) *corev1.Pod {
 	isPrivileged := true
 	mp := corev1.MountPropagationBidirectional
@@ -61,6 +62,10 @@ func NewMountPod(podName, cmd, mountPath string, resourceRequirements corev1.Res
 	}, {
 		Name:             "jfs-root-dir",
 		MountPath:        "/root/.juicefs",
+		MountPropagation: &mp,
+	}, {
+		Name:             "kubelet-dir",
+		MountPath:        config.KubeletDir,
 		MountPropagation: &mp,
 	}}
 
@@ -77,6 +82,14 @@ func NewMountPod(podName, cmd, mountPath string, resourceRequirements corev1.Res
 		VolumeSource: corev1.VolumeSource{
 			HostPath: &corev1.HostPathVolumeSource{
 				Path: config.JFSConfigPath,
+				Type: &dir,
+			},
+		},
+	}, {
+		Name: "kubelet-dir",
+		VolumeSource: corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: config.KubeletDir,
 				Type: &dir,
 			},
 		},
@@ -103,7 +116,8 @@ func NewMountPod(podName, cmd, mountPath string, resourceRequirements corev1.Res
 			MountPropagation: &mp,
 		})
 	}
-
+	cmdStr := fmt.Sprintf( "umount %s/%s ; %s ; %s", config.PodMountBase, volId, config.RecoveryCmd, cmd)
+	klog.V(5).Infof("NewMountPod cmd :%+v\n", cmdStr)
 	var pod = &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
@@ -117,15 +131,20 @@ func NewMountPod(podName, cmd, mountPath string, resourceRequirements corev1.Res
 			Containers: []corev1.Container{{
 				Name:    "jfs-mount",
 				Image:   config.MountImage,
-				Command: []string{"sh", "-c", cmd},
+				Command: []string{"sh", "-c", cmdStr},
 				SecurityContext: &corev1.SecurityContext{
 					Privileged: &isPrivileged,
 				},
 				Resources: resourceRequirements,
-				Env: []corev1.EnvVar{{
+				Env: []corev1.EnvVar{
+					{
 					Name:  "JFS_FOREGROUND",
 					Value: "1",
-				}},
+					},{
+					Name:  "volumeId",
+					Value: volId,
+					},
+				},
 				Ports: []corev1.ContainerPort{{
 					Name:          "metrics",
 					ContainerPort: 9567,

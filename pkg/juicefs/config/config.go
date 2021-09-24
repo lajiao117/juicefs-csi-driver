@@ -28,6 +28,7 @@ var (
 
 	MountPointPath       = "/var/lib/juicefs/volume"
 	JFSConfigPath        = "/var/lib/juicefs/config"
+	KubeletDir        = "/var/lib/kubelet"
 	JFSMountPriorityName = ""
 
 	PodMountBase = "/jfs"
@@ -43,4 +44,6 @@ const (
 	PodTypeKey   = "app.kubernetes.io/name"
 	PodTypeValue = "juicefs-mount"
 	Finalizer    = "juicefs.com/finalizer"
+	//RecoveryCmd = " 'python3 /bin/volume_recovery.py > nohup.out 2>&1 &' "
+	RecoveryCmd = " /bin/recovery.sh"
 )
