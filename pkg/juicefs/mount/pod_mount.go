@@ -175,7 +175,7 @@ func (p *PodMount) waitUntilMount(volumeId, target, mountPath, cmd string) error
 	if err != nil && k8serrors.IsNotFound(err) {
 		// need create
 		klog.V(5).Infof("waitUtilMount: Need to create pod %s.", podName)
-		newPod := NewMountPod(podName, cmd, mountPath, podResource, config, env)
+		newPod := NewMountPod(podName, cmd, mountPath, volumeId, target, podResource, config, env)
 		if newPod.Annotations == nil {
 			newPod.Annotations = make(map[string]string)
 		}
@@ -228,7 +228,7 @@ func (p *PodMount) waitUntilMount(volumeId, target, mountPath, cmd string) error
 			}
 
 			time.Sleep(time.Second * 5)
-			newPod := NewMountPod(podName, cmd, mountPath, podResource, config, env)
+			newPod := NewMountPod(podName, cmd, mountPath, volumeId, target, podResource, config, env)
 			newPod.Annotations = pod.Annotations
 			util.DeleteResourceOfPod(newPod)
 			klog.V(5).Infof("waitUtilMount: Deploy again with no resource.")
