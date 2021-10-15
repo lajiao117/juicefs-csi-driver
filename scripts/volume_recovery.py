@@ -15,11 +15,11 @@ def main():
         # wait source_path mount, timeout 1 minute
         po = subprocess.Popen("ls %s"% source_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         ls_res = po.stderr.read().decode("utf-8")
-        if ls_res == "":
+        if ls_res == "": # host target is normal
             break
         print("ls %s res:" % source_path, ls_res)
-        if i == 30:
-            print("recover time out")
+        if i == 29:
+            print("wait host target recover time out")
             return
     mount_tmp = "%s/mount" % volumeId
     mount_res = os.popen("grep %s /proc/mounts |awk '{print $2}'" % mount_tmp).readlines()
