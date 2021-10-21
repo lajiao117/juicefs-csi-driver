@@ -117,8 +117,8 @@ func NewMountPod(podName, cmd, mountPath, volId, targetPath string, resourceRequ
 			MountPropagation: &mp,
 		})
 	}
-	cmdStr := fmt.Sprintf( "umount %s/%s ; %s ; %s", config.PodMountBase, volId, config.RecoveryCmd, cmd)
-	klog.V(5).Infof("NewMountPod cmd :%+v\n", cmdStr)
+	//cmdStr := fmt.Sprintf( "umount %s/%s ; %s ; %s", config.PodMountBase, volId, config.RecoveryCmd, cmd)
+	klog.V(5).Infof("NewMountPod cmd :%+v\n", cmd)
 	var pod = &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
@@ -126,13 +126,15 @@ func NewMountPod(podName, cmd, mountPath, volId, targetPath string, resourceRequ
 			Labels: map[string]string{
 				config.PodTypeKey: config.PodTypeValue,
 			},
-			Annotations: make(map[string]string),
+			Annotations: map[string]string{
+				config.VolumeIdKey: volId,
+			},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{{
 				Name:    "jfs-mount",
 				Image:   config.MountImage,
-				Command: []string{"sh", "-c", cmdStr},
+				Command: []string{"sh", "-c", cmd},
 				SecurityContext: &corev1.SecurityContext{
 					Privileged: &isPrivileged,
 				},
@@ -171,6 +173,7 @@ func NewMountPod(podName, cmd, mountPath, volId, targetPath string, resourceRequ
 	}
 	controllerutil.AddFinalizer(pod, config.Finalizer)
 	pod.Spec.PriorityClassName = config.JFSMountPriorityName
+	pod.Spec.RestartPolicy = corev1.RestartPolicyNever
 	i := 1
 	for k, v := range configs {
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts,

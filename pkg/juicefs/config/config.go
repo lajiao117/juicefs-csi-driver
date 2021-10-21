@@ -44,5 +44,6 @@ const (
 	PodTypeKey   = "app.kubernetes.io/name"
 	PodTypeValue = "juicefs-mount"
 	Finalizer    = "juicefs.com/finalizer"
-	RecoveryCmd = " /bin/recovery.sh"
+	RecoveryCmd  = " /bin/recovery.sh"
+	VolumeIdKey  = "volume-id"
 )

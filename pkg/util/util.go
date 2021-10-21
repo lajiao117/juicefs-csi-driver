@@ -17,6 +17,7 @@ limitations under the License.
 package util
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"net/url"
 	"os"
@@ -56,3 +57,10 @@ func ContainsString(slice []string, s string) bool {
 	}
 	return false
 }
+
+func GetReferenceKey(target string) string {
+	h := sha256.New()
+	h.Write([]byte(target))
+	return fmt.Sprintf("juicefs-%x", h.Sum(nil))[:63]
+}
+
