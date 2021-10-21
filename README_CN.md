@@ -52,7 +52,22 @@ storageClasses:
         memory: "<memory-request>"
 ```
 
-2. 部署
+
+2. 检查 kubelet root-dir
+
+执行以下命令
+
+```shell
+$ ps -ef | grep kubelet | grep root-dir
+```
+
+如果结果不为空，则代表 kubelet 的 root-dir 路径不是默认值，需要在第一步准备的配置文件 `values.yaml` 中将 `kubeletDir` 设置为 kubelet 当前的 root-dir 路径：
+
+```yaml
+kubeletDir: <kubelet-dir>
+```
+
+3. 部署
 
 依次执行以下三条命令，通过 helm 部署 JuiceFS CSI Driver。
 
@@ -62,7 +77,7 @@ $ helm repo update
 $ helm upgrade juicefs-csi-driver juicefs-csi-driver/juicefs-csi-driver --install -f ./values.yaml
 ```
 
-3. 检查部署状态
+4. 检查部署状态
 
 - **检查 Pods**：部署过程会启动一个名为 `juicefs-csi-controller` 的 `StatefulSet` 及一个 replica，以及一个名为 `juicefs-csi-node` 的 `DaemonSet`。执行命令 `kubectl -n kube-system get pods -l app.kubernetes.io/name=juicefs-csi-driver` 会看到有 `n+1` 个 pod 在运行，例如：
 
@@ -109,39 +124,41 @@ juicefs-sc   csi.juicefs.com   Retain          Immediate           false        
 
 由于 Kubernetes 在版本变更过程中会废弃部分旧的 API，因此需要根据你使用 Kubernetes 版本选择适用的部署文件：
 
-#### Kubernetes v1.18 及以上版本
+1. 检查 `kubelet root-dir` 路径
 
-```shell
-$ kubectl apply -f https://raw.githubusercontent.com/juicedata/juicefs-csi-driver/master/deploy/k8s.yaml
-```
-
-#### Kubernetes v1.18 以下版本
-
-```shell
-$ kubectl apply -f https://raw.githubusercontent.com/juicedata/juicefs-csi-driver/master/deploy/k8s_before_v1_18.yaml
-```
-
-#### 故障排查
-
-如果 Kubernetes 无法发现 CSI 驱动并返回类似下面的错误：
-
-```
-driver name csi.juicefs.com not found in the list of registered CSI drivers, check the root directory path of `kubelet`.
-```
-
-请尝试在集群中任何一个非 master 节点执行命令：
+在 Kubernetes 集群中任意一个非 Master 节点上执行以下命令：
 
 ```shell
 $ ps -ef | grep kubelet | grep root-dir
 ```
 
-如果结果不为空，请手动修改 CSI 驱动的部署文件 `k8s.yaml`，替换其中的 Kubelet 根目录，然后重新进行部署。
+2. 部署
+
+**如果前面检查命令返回的结果不为空**，则代表 kubelet 的 root-dir 路径不是默认值，因此需要在 CSI Driver 的部署文件中更新 `kubeletDir` 路径并部署：
 
 ```shell
-$ curl -sSL https://raw.githubusercontent.com/juicedata/juicefs-csi-driver/master/deploy/k8s.yaml | sed 's@/var/lib/kubelet@{{KUBELET_DIR}}@g' | kubectl apply -f -
+# Kubernetes version >= v1.18
+curl -sSL https://raw.githubusercontent.com/juicedata/juicefs-csi-driver/master/deploy/k8s.yaml | sed 's@/var/lib/kubelet@{{KUBELET_DIR}}@g' | kubectl apply -f -
+
+# Kubernetes version < v1.18
+curl -sSL https://raw.githubusercontent.com/juicedata/juicefs-csi-driver/master/deploy/k8s_before_v1_18.yaml | sed 's@/var/lib/kubelet@{{KUBELET_DIR}}@g' | kubectl apply -f -
 ```
 
-> 注意：请将上述命令中 `{{KUBELET_DIR}}` 替换成 kubelet 实际的根目录路径。
+> **注意**: 请将上述命令中 `{{KUBELET_DIR}}` 替换成 kubelet 当前的根目录路径。
+
+**如果前面检查命令返回的结果为空**，无需修改配置，可直接部署：
+
+```shell
+# Kubernetes version >= v1.18
+kubectl apply -f https://raw.githubusercontent.com/juicedata/juicefs-csi-driver/master/deploy/k8s.yaml
+
+# Kubernetes version < v1.18
+kubectl apply -f https://raw.githubusercontent.com/juicedata/juicefs-csi-driver/master/deploy/k8s_before_v1_18.yaml
+```
+
+## 故障排查
+
+请参考 [Troubleshooting](docs/troubleshooting.md) 或 [FAQs](docs/FAQs.md) 文档。
 
 ## 升级 CSI Driver
 
@@ -212,10 +229,6 @@ Juicefs CSI Driver 从 v0.10.0 开始分离了 JuiceFS client 客户端，升级
 
 * Node Service: NodePublishVolume, NodeUnpublishVolume, NodeGetCapabilities, NodeGetInfo, NodeGetId
 * Identity Service: GetPluginInfo, GetPluginCapabilities, Probe
-
-## 故障排查
-
-请参考 [Troubleshooting](docs/troubleshooting.md) 文档。
 
 ## Kubernetes
 
