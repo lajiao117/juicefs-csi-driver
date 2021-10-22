@@ -41,7 +41,7 @@ func NewPodDriver(client client.Client) *PodDriver {
 	driver := &PodDriver{
 		Client:   client,
 		handlers: map[podStatus]podHandler{},
-		Mounter: k8sMount.New(""),
+		Mounter:  k8sMount.New(""),
 	}
 	driver.handlers[podReady] = driver.podReadyHandler
 	driver.handlers[podError] = driver.podErrorHandler
@@ -181,7 +181,7 @@ func (p *PodDriver) podReadyHandler(ctx context.Context, pod *corev1.Pod) (recon
 					klog.V(5).Infof("target not mounted:%s, don't need do recover", v)
 					continue
 				}
-			}else if os.IsNotExist(err) {
+			} else if os.IsNotExist(err) {
 				klog.V(5).Infof("target:%s not exists , just return", v)
 				continue
 			}

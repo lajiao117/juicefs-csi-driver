@@ -14,9 +14,6 @@
 
 FROM juicedata/juicefs-csi-driver:nightly
 
-COPY bin/juicefs-csi-driver /bin/juicefs-csi-driver
-COPY scripts/volume_recovery.py /bin/volume_recovery.py
-COPY scripts/recovery.sh /bin/recovery.sh
-RUN  chmod +x /bin/recovery.sh
+COPY juicefs-csi-driver /bin/juicefs-csi-driver
 
 ENTRYPOINT ["/bin/juicefs-csi-driver"]

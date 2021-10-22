@@ -48,7 +48,7 @@ func hasRef(pod *corev1.Pod) bool {
 	return false
 }
 
-func NewMountPod(podName, cmd, mountPath, volId, targetPath string, resourceRequirements corev1.ResourceRequirements,
+func NewMountPod(podName, cmd, mountPath, volId string, resourceRequirements corev1.ResourceRequirements,
 	configs, env map[string]string) *corev1.Pod {
 	cmd = quoteForShell(cmd)
 	isPrivileged := true
@@ -64,11 +64,8 @@ func NewMountPod(podName, cmd, mountPath, volId, targetPath string, resourceRequ
 		Name:             "jfs-root-dir",
 		MountPath:        "/root/.juicefs",
 		MountPropagation: &mp,
-	}, {
-		Name:             "kubelet-dir",
-		MountPath:        config.KubeletDir,
-		MountPropagation: &mp,
-	}}
+	},
+	}
 
 	volumes := []corev1.Volume{{
 		Name: "jfs-dir",
@@ -86,15 +83,8 @@ func NewMountPod(podName, cmd, mountPath, volId, targetPath string, resourceRequ
 				Type: &dir,
 			},
 		},
-	}, {
-		Name: "kubelet-dir",
-		VolumeSource: corev1.VolumeSource{
-			HostPath: &corev1.HostPathVolumeSource{
-				Path: config.KubeletDir,
-				Type: &dir,
-			},
-		},
-	}}
+	},
+	}
 
 	// add cache-dir host path volume
 	if strings.Contains(cmd, "cache-dir") {
@@ -117,7 +107,6 @@ func NewMountPod(podName, cmd, mountPath, volId, targetPath string, resourceRequ
 			MountPropagation: &mp,
 		})
 	}
-	//cmdStr := fmt.Sprintf( "umount %s/%s ; %s ; %s", config.PodMountBase, volId, config.RecoveryCmd, cmd)
 	klog.V(5).Infof("NewMountPod cmd :%+v\n", cmd)
 	var pod = &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
