@@ -165,6 +165,22 @@ func (p *PodDriver) podReadyHandler(ctx context.Context, pod *corev1.Pod) (recon
 		return reconcile.Result{}, nil
 	}
 	sourcePath := fmt.Sprintf("%s/%s/%s", config.PodMountBase, volumeId, volumeId)
+	// staticPv no subPath
+	// todo get pv VolumeAttributes - subPath
+	_, err := os.Stat(sourcePath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			klog.Errorf("stat volPath:%s err:%v, don't do recovery", sourcePath, err)
+			return reconcile.Result{}, nil
+		}
+		sourcePath = fmt.Sprintf("%s/%s", config.PodMountBase, volumeId)
+		if _, err2 := os.Stat(sourcePath); err2 != nil {
+			if !os.IsNotExist(err2) {
+				klog.Errorf("stat volPath:%s err:%v, don't do recovery", sourcePath, err2)
+				return reconcile.Result{}, nil
+			}
+		}
+	}
 	mountOption := []string{"bind"}
 	for k, v := range pod.Annotations {
 		if k == util.GetReferenceKey(v) {
