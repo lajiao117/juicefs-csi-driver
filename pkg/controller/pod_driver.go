@@ -175,10 +175,8 @@ func (p *PodDriver) podReadyHandler(ctx context.Context, pod *corev1.Pod) (recon
 		}
 		sourcePath = fmt.Sprintf("%s/%s", config.PodMountBase, volumeId)
 		if _, err2 := os.Stat(sourcePath); err2 != nil {
-			if !os.IsNotExist(err2) {
-				klog.Errorf("stat volPath:%s err:%v, don't do recovery", sourcePath, err2)
-				return reconcile.Result{}, nil
-			}
+			klog.Errorf("stat volPath:%s err:%v, don't do recovery", sourcePath, err2)
+			return reconcile.Result{}, nil
 		}
 	}
 	mountOption := []string{"bind"}
