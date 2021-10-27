@@ -19,13 +19,12 @@ package controller
 import (
 	"context"
 	"fmt"
-	k8sMount "k8s.io/utils/mount"
-	"os"
-
 	"github.com/juicedata/juicefs-csi-driver/pkg/juicefs/config"
 	"github.com/juicedata/juicefs-csi-driver/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
+	k8sMount "k8s.io/utils/mount"
+	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -113,10 +112,6 @@ func (p *PodDriver) podDeletedHandler(ctx context.Context, pod *corev1.Pod) (rec
 		return reconcile.Result{}, nil
 	}
 	var targets = make([]string, 0)
-	volumeId, ok := pod.Annotations[config.VolumeIdKey]
-	if !ok {
-		return reconcile.Result{}, nil
-	}
 	for k, v := range pod.Annotations {
 		if k == util.GetReferenceKey(v) {
 			targets = append(targets, v)
@@ -134,7 +129,26 @@ func (p *PodDriver) podDeletedHandler(ctx context.Context, pod *corev1.Pod) (rec
 	if len(targets) == 0 {
 		return reconcile.Result{}, nil
 	}
-	sourcePath := fmt.Sprintf("%s/%s", config.PodMountBase, volumeId)
+	// create the pod even if get err
+	defer func() {
+		controllerutil.AddFinalizer(pod, config.Finalizer)
+		pod.ResourceVersion = ""
+		err := p.Client.Create(ctx, pod)
+		if err != nil {
+			klog.Errorf("create pod:%s err:%v", pod.Name, err)
+		}
+	}()
+	cmd := pod.Spec.Containers[0].Command
+	if cmd == nil || len(cmd) < 3{
+		klog.Errorf("get error pod command:%v", cmd)
+		return reconcile.Result{}, nil
+	}
+	sourcePath, _, err := util.ParseMntPath(cmd[2])
+	if err != nil {
+		klog.Error(err)
+		return reconcile.Result{}, nil
+	}
+
 	klog.Infof("start umount :%s", sourcePath)
 	if err := p.Mounter.Unmount(sourcePath); err != nil {
 		klog.Errorf("umount %s err:%v\n", sourcePath, err)
@@ -143,37 +157,35 @@ func (p *PodDriver) podDeletedHandler(ctx context.Context, pod *corev1.Pod) (rec
 	// create
 	klog.V(5).Infof("pod targetPath not empty, need create thd pod:%s", pod.Name)
 	// todo check pod not exists
-	controllerutil.AddFinalizer(pod, config.Finalizer)
-	pod.ResourceVersion = ""
-	err := p.Client.Create(ctx, pod)
-	if err != nil {
-		klog.Errorf("create pod:%s err:%v", pod.Name, err)
-	}
+
 	return reconcile.Result{}, nil
 }
 
 func (p *PodDriver) podReadyHandler(ctx context.Context, pod *corev1.Pod) (reconcile.Result, error) {
 	// bind target
 	// do recovery
-
 	if pod.Annotations == nil {
 		return reconcile.Result{}, nil
 	}
-	//var targets = make([]string, 0)
-	volumeId, ok := pod.Annotations[config.VolumeIdKey]
-	if !ok {
+	cmd := pod.Spec.Containers[0].Command
+	if cmd == nil || len(cmd) < 3{
+		klog.Errorf("get error pod command:%v, don't do recovery", cmd)
 		return reconcile.Result{}, nil
 	}
-	sourcePath := fmt.Sprintf("%s/%s/%s", config.PodMountBase, volumeId, volumeId)
+	mntPath, volumeId, err := util.ParseMntPath(cmd[2])
+	if err != nil {
+		klog.Error(err)
+		return reconcile.Result{}, nil
+	}
 	// staticPv no subPath
-	// todo get pv VolumeAttributes - subPath
-	_, err := os.Stat(sourcePath)
+	sourcePath := fmt.Sprintf("%s/%s", mntPath, volumeId)
+	_, err = os.Stat(sourcePath)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			klog.Errorf("stat volPath:%s err:%v, don't do recovery", sourcePath, err)
 			return reconcile.Result{}, nil
 		}
-		sourcePath = fmt.Sprintf("%s/%s", config.PodMountBase, volumeId)
+		sourcePath = mntPath
 		if _, err2 := os.Stat(sourcePath); err2 != nil {
 			klog.Errorf("stat volPath:%s err:%v, don't do recovery", sourcePath, err2)
 			return reconcile.Result{}, nil
@@ -182,8 +194,7 @@ func (p *PodDriver) podReadyHandler(ctx context.Context, pod *corev1.Pod) (recon
 	mountOption := []string{"bind"}
 	for k, v := range pod.Annotations {
 		if k == util.GetReferenceKey(v) {
-			//targets = append(targets, v)
-			cmd := fmt.Sprintf("start exec cmd: mount -o bind %s %s \n", sourcePath, v)
+			cmd2 := fmt.Sprintf("start exec cmd: mount -o bind %s %s \n", sourcePath, v)
 			// check target should do recover
 			_, err := os.Stat(v)
 			if err == nil {
@@ -196,7 +207,7 @@ func (p *PodDriver) podReadyHandler(ctx context.Context, pod *corev1.Pod) (recon
 					continue
 				}
 			} else if os.IsNotExist(err) {
-				klog.V(5).Infof("target:%s not exists , just return", v)
+				klog.V(5).Infof("target:%s not exists ,  don't do recover", v)
 				continue
 			}
 			// can not umount , after umount ,the container target don't recovery
@@ -210,7 +221,7 @@ func (p *PodDriver) podReadyHandler(ctx context.Context, pod *corev1.Pod) (recon
 			//		}
 			//	}
 			//}
-			klog.V(5).Infof("Get pod %s in namespace %s is ready, %s", pod.Name, pod.Namespace, cmd)
+			klog.V(5).Infof("Get pod %s in namespace %s is ready, %s", pod.Name, pod.Namespace, cmd2)
 			if err := p.Mounter.Mount(sourcePath, v, "none", mountOption); err != nil {
 				klog.Errorf("exec cmd: mount -o bind %s %s err:%v", sourcePath, v, err)
 			}

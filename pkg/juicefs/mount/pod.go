@@ -48,7 +48,7 @@ func hasRef(pod *corev1.Pod) bool {
 	return false
 }
 
-func NewMountPod(podName, cmd, mountPath, volId string, resourceRequirements corev1.ResourceRequirements,
+func NewMountPod(podName, cmd, mountPath string, resourceRequirements corev1.ResourceRequirements,
 	configs, env map[string]string) *corev1.Pod {
 	cmd = quoteForShell(cmd)
 	isPrivileged := true
@@ -115,9 +115,7 @@ func NewMountPod(podName, cmd, mountPath, volId string, resourceRequirements cor
 			Labels: map[string]string{
 				config.PodTypeKey: config.PodTypeValue,
 			},
-			Annotations: map[string]string{
-				config.VolumeIdKey: volId,
-			},
+			Annotations: make(map[string]string),
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{{
@@ -132,9 +130,6 @@ func NewMountPod(podName, cmd, mountPath, volId string, resourceRequirements cor
 					{
 					Name:  "JFS_FOREGROUND",
 					Value: "1",
-					},{
-					Name:  "volumeId",
-					Value: volId,
 					},
 				},
 				Ports: []corev1.ContainerPort{{
