@@ -22,12 +22,16 @@ import (
 	"github.com/juicedata/juicefs-csi-driver/pkg/juicefs/config"
 	"github.com/juicedata/juicefs-csi-driver/pkg/util"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 	k8sMount "k8s.io/utils/mount"
 	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"time"
 )
 
 type PodDriver struct {
@@ -131,9 +135,36 @@ func (p *PodDriver) podDeletedHandler(ctx context.Context, pod *corev1.Pod) (rec
 	}
 	// create the pod even if get err
 	defer func() {
-		controllerutil.AddFinalizer(pod, config.Finalizer)
-		pod.ResourceVersion = ""
-		err := p.Client.Create(ctx, pod)
+		// check pod delete
+		key := types.NamespacedName{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+		}
+		// check pod exists
+		for i := 0; i < 30; i++ {
+			if err := p.Client.Get(ctx, key, pod); err == nil {
+				klog.Infof("pod still exists, wait to create")
+				time.Sleep(time.Second * 5)
+			} else {
+				if apierrors.IsNotFound(err) {
+					break
+				}
+				klog.Errorf("get pod err:%v", err) // create pod even if get err
+				break
+			}
+
+		}
+		var newPod = &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      pod.Name,
+				Namespace: pod.Namespace,
+				Labels: pod.Labels,
+				Annotations: pod.Annotations,
+			},
+			Spec: pod.Spec,
+		}
+		controllerutil.AddFinalizer(newPod, config.Finalizer)
+		err := p.Client.Create(ctx, newPod)
 		if err != nil {
 			klog.Errorf("create pod:%s err:%v", pod.Name, err)
 		}
