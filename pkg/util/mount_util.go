@@ -19,9 +19,7 @@ func IsMounted(target string, mounter mount.Interface)(bool, error){
 		if err != nil {
 			return false, status.Errorf(codes.Internal, "Check target path is mountpoint failed: %q", err)
 		}
-		if notMnt { // target exists but not a mountpoint
-			return false, nil
-		}
+		return !notMnt, nil
 	} else if err != nil {
 		if corruptedMnt = mount.IsCorruptedMnt(err); !corruptedMnt {
 			return true, nil

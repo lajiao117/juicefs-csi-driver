@@ -229,14 +229,16 @@ func (p *PodDriver) podReadyHandler(ctx context.Context, pod *corev1.Pod) (recon
 			// check target should do recover
 			_, err := os.Stat(v)
 			if err == nil {
-				mounted, err2 := util.IsMounted(v, p.Mounter)
-				if err2 != nil {
-					klog.Errorf("check v is IsMounted err:%v\n", err2)
-				}
-				if !mounted { // only mounted target do recovery
-					klog.V(5).Infof("target not mounted:%s, don't need do recover", v)
-					continue
-				}
+				klog.V(5).Infof("target path %s is normal, don't need do recover", v)
+				continue
+				//mounted, err2 := util.IsMounted(v, p.Mounter)
+				//if err2 != nil {
+				//	klog.Errorf("check v is IsMounted err:%v\n", err2)
+				//}
+				//if !mounted { // only mounted target do recovery
+				//	klog.V(5).Infof("target not mounted:%s, don't need do recover", v)
+				//	continue
+				//}
 			} else if os.IsNotExist(err) {
 				klog.V(5).Infof("target:%s not exists ,  don't do recover", v)
 				continue
