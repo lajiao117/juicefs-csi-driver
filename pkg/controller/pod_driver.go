@@ -89,6 +89,66 @@ func (p *PodDriver) podErrorHandler(ctx context.Context, pod *corev1.Pod) (recon
 	if pod == nil {
 		return reconcile.Result{}, nil
 	}
+	// check resource err
+	if util.IsPodResourceError(pod) {
+		klog.V(5).Infof("waitUtilMount: Pod is failed because of resource.")
+		if util.IsPodHasResource(*pod) {
+			// if pod is failed because of resource, delete resource and deploy pod again.
+			controllerutil.RemoveFinalizer(pod, config.Finalizer)
+			if err := p.Client.Update(ctx, pod); err != nil {
+				klog.Errorf("Update pod err:%v", err)
+				return reconcile.Result{}, nil
+			}
+			klog.V(5).Infof("waitUtilMount: Delete it and deploy again with no resource.")
+			if err := p.Client.Delete(ctx, pod); err != nil {
+				klog.V(5).Infof("delete po:%s err:%v", pod.Name, err)
+				return reconcile.Result{}, nil
+			}
+			// wait pod delete
+			key := types.NamespacedName{
+				Namespace: pod.Namespace,
+				Name:      pod.Name,
+			}
+			for i := 0; i < 30; i++ {
+				err := p.Client.Get(ctx, key, pod)
+				if err == nil {
+					if pod.Finalizers != nil || len(pod.Finalizers) == 0{
+						controllerutil.RemoveFinalizer(pod, config.Finalizer)
+						if err := p.Client.Update(ctx, pod); err != nil {
+							klog.Errorf("Update pod err:%v", err)
+						}
+					}
+					klog.V(5).Infof("pod still exists wait.")
+					time.Sleep(time.Second * 5)
+					continue
+				}
+				if apierrors.IsNotFound(err) {
+					break
+				}
+				klog.V(5).Infof("get mountPod err:%v", err)
+			}
+			var newPod = &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        pod.Name,
+					Namespace:   pod.Namespace,
+					Labels:      pod.Labels,
+					Annotations: pod.Annotations,
+				},
+				Spec: pod.Spec,
+			}
+			controllerutil.AddFinalizer(newPod, config.Finalizer)
+			util.DeleteResourceOfPod(newPod)
+			klog.V(5).Infof("waitUtilMount: Deploy again with no resource.")
+			err := p.Client.Create(ctx, newPod)
+			if err != nil {
+				klog.Errorf("create pod:%s err:%v", pod.Name, err)
+			}
+		} else {
+			klog.V(5).Infof("mountPod PodResourceError, but pod no resource")
+		}
+		return reconcile.Result{}, nil
+	}
+
 	klog.V(5).Infof("Get pod %s in namespace %s is err status, deleting thd pod.", pod.Name, pod.Namespace)
 	if err := p.Client.Delete(ctx, pod); err != nil {
 		klog.V(5).Infof("delete po:%s err:%v", pod.Name, err)
@@ -101,6 +161,10 @@ func (p *PodDriver) podDeletedHandler(ctx context.Context, pod *corev1.Pod) (rec
 	klog.V(5).Infof("Get pod %s in namespace %s is to be deleted.", pod.Name, pod.Namespace)
 	if !util.ContainsString(pod.GetFinalizers(), config.Finalizer) {
 		// do nothing
+		return reconcile.Result{}, nil
+	}
+	if util.IsPodResourceError(pod) {
+		klog.V(5).Infof("the pod is PodResourceError, podDeletedHandler skip delete the pod:%s", pod.Name)
 		return reconcile.Result{}, nil
 	}
 	// todo
