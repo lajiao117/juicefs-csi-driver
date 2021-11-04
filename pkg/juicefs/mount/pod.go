@@ -128,8 +128,8 @@ func NewMountPod(podName, cmd, mountPath string, resourceRequirements corev1.Res
 				Resources: resourceRequirements,
 				Env: []corev1.EnvVar{
 					{
-					Name:  "JFS_FOREGROUND",
-					Value: "1",
+						Name:  "JFS_FOREGROUND",
+						Value: "1",
 					},
 				},
 				Ports: []corev1.ContainerPort{{

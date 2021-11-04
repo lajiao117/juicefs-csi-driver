@@ -112,7 +112,7 @@ func (p *PodDriver) podErrorHandler(ctx context.Context, pod *corev1.Pod) (recon
 			for i := 0; i < 30; i++ {
 				err := p.Client.Get(ctx, key, pod)
 				if err == nil {
-					if pod.Finalizers != nil || len(pod.Finalizers) == 0{
+					if pod.Finalizers != nil || len(pod.Finalizers) == 0 {
 						controllerutil.RemoveFinalizer(pod, config.Finalizer)
 						if err := p.Client.Update(ctx, pod); err != nil {
 							klog.Errorf("Update pod err:%v", err)
@@ -220,9 +220,9 @@ func (p *PodDriver) podDeletedHandler(ctx context.Context, pod *corev1.Pod) (rec
 		}
 		var newPod = &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      pod.Name,
-				Namespace: pod.Namespace,
-				Labels: pod.Labels,
+				Name:        pod.Name,
+				Namespace:   pod.Namespace,
+				Labels:      pod.Labels,
 				Annotations: pod.Annotations,
 			},
 			Spec: pod.Spec,
@@ -234,7 +234,7 @@ func (p *PodDriver) podDeletedHandler(ctx context.Context, pod *corev1.Pod) (rec
 		}
 	}()
 	cmd := pod.Spec.Containers[0].Command
-	if cmd == nil || len(cmd) < 3{
+	if cmd == nil || len(cmd) < 3 {
 		klog.Errorf("get error pod command:%v", cmd)
 		return reconcile.Result{}, nil
 	}
@@ -263,7 +263,7 @@ func (p *PodDriver) podReadyHandler(ctx context.Context, pod *corev1.Pod) (recon
 		return reconcile.Result{}, nil
 	}
 	cmd := pod.Spec.Containers[0].Command
-	if cmd == nil || len(cmd) < 3{
+	if cmd == nil || len(cmd) < 3 {
 		klog.Errorf("get error pod command:%v, don't do recovery", cmd)
 		return reconcile.Result{}, nil
 	}
